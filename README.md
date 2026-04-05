@@ -1,156 +1,126 @@
-# ACIS — Autonomous AI Cost Intelligence System
+# ACIS — AI Cost Intelligence System
 
 > **"The Stripe for AI usage optimization."**
 
-ACIS intelligently routes every AI prompt to the optimal model — balancing **cost × quality × speed** — so you never overpay for AI again.
+Intelligently route every AI prompt to the optimal model — balancing **cost × quality × speed** — so you never overpay for AI again.
+
+## ✨ Live Features
+
+- **Simulate Before Execute** — Preview cost + quality across 10 models before spending a token
+- **Auto-Cascading Fallback** — Try cheap model → escalate automatically if quality is low
+- **Self-Learning Routing** — Gets smarter with every query
+- **Cost Savings Dashboard** — Real-time savings counter with charts
+- **Task Classification** — Auto-detects code / creative / analysis / support tasks
 
 ---
 
-## What Makes ACIS Different
+## 🚀 Deploy in 5 Minutes (No Terminal Needed)
 
-| Feature | ACIS | LiteLLM | OpenRouter | Helicone |
-|---|---|---|---|---|
-| **Simulate Before Execute** | ✅ Preview cost + quality before spending | ❌ | ❌ | ❌ |
-| **Auto-Cascading Fallback** | ✅ Try cheap → escalate if quality fails | Partial | ❌ | ❌ |
-| **Self-Learning Routing** | ✅ Gets smarter with every query | ❌ | ❌ | ❌ |
-| **Cost Savings Dashboard** | ✅ Real-time $ saved counter | Basic | Basic | ✅ |
-| **Task Classification** | ✅ Auto-detects task type + complexity | ❌ | ❌ | ❌ |
-| **Quality Evaluation** | ✅ LLM-as-judge on every response | ❌ | ❌ | ❌ |
+### Step 1 — Get the code on GitHub
 
----
+1. Go to [github.com/new](https://github.com/new)
+2. Name your repo `acis` (or anything you like)
+3. Set it to **Public**
+4. Check **"Add a README file"**
+5. Click **Create repository**
+6. On your new repo page, click **"Add file"** → **"Upload files"**
+7. Drag and drop ALL files from the downloaded zip into the upload area
+8. Click **"Commit changes"**
 
-## Quick Start
-
-### 1. Clone & Configure
-```bash
-git clone <your-repo-url>
-cd acis
-cp .env.example .env
-# Add your API keys to .env
-```
-
-### 2. Run with Docker
-```bash
-docker compose up -d
-```
-
-### 3. Or run locally
-```bash
-pip install -e .
-uvicorn main:app --reload
-```
-
-### 4. Open
-- API Docs: http://localhost:8000/docs
-- Dashboard: Open the React dashboard (see `/dashboard`)
+> **Important:** Make sure the files are at the ROOT of the repo, not inside a subfolder. You should see `package.json`, `index.html`, `vite.config.js` etc. at the top level.
 
 ---
 
-## API Usage
+### Step 2 — Deploy Frontend on Vercel (FREE)
 
-### Send a Query (Optimized Routing)
-```bash
-curl -X POST http://localhost:8000/api/v1/query \
-  -H "Content-Type: application/json" \
-  -d '{
-    "prompt": "Write a Python function to merge two sorted lists",
-    "latency_priority": "medium"
-  }'
-```
+1. Go to [vercel.com](https://vercel.com) and click **"Sign Up"** → **"Continue with GitHub"**
+2. Authorize Vercel to access your GitHub
+3. Click **"Add New..."** → **"Project"**
+4. Find your `acis` repo in the list and click **"Import"**
+5. Vercel auto-detects Vite. Leave all settings as default:
+   - Framework Preset: **Vite**
+   - Build Command: `npm run build`  
+   - Output Directory: `dist`
+6. Click **"Deploy"**
+7. Wait ~60 seconds. You'll get a live URL like: **`https://acis-yourusername.vercel.app`**
 
-### Simulate Before Execute (USP)
-```bash
-curl -X POST http://localhost:8000/api/v1/simulate \
-  -H "Content-Type: application/json" \
-  -d '{
-    "prompt": "Analyze the competitive landscape of AI infrastructure startups",
-    "simulate_only": true
-  }'
-```
-
-### Get Cost Savings Report
-```bash
-curl http://localhost:8000/api/v1/analytics/savings?hours=24
-```
+✅ **Done! Your dashboard is live.** The simulation mode works immediately — no backend needed.
 
 ---
 
-## Architecture
+### Step 3 (Optional) — Deploy Backend on Render (FREE)
 
-```
-Request → Cache Check → Task Classifier → Routing Engine → Provider
-                                              ↓
-                                         Cost Engine
-                                              ↓
-                                    Evaluation Engine
-                                              ↓
-                                   Quality < threshold?
-                                     ↓ YES         ↓ NO
-                                  Cascade        Return
-                                  to better      response
-                                  model
-                                              ↓
-                                    Memory + Learning
-                                              ↓
-                                    Dashboard Analytics
-```
+This gives you a live API with real LLM routing.
+
+1. Go to [render.com](https://render.com) and sign up with GitHub
+2. Click **"New +"** → **"Web Service"**
+3. Connect your `acis` GitHub repo
+4. Configure:
+   - **Name:** `acis-backend`
+   - **Root Directory:** `backend`
+   - **Runtime:** Python
+   - **Build Command:** `pip install -r requirements.txt`
+   - **Start Command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
+5. Under **Environment Variables**, add your API keys:
+   - `OPENAI_API_KEY` = your key
+   - `ANTHROPIC_API_KEY` = your key  
+   - `GOOGLE_API_KEY` = your key
+6. Select the **Free** plan
+7. Click **"Create Web Service"**
+8. Wait ~2 minutes for build. You'll get a URL like: **`https://acis-backend.onrender.com`**
+9. Test it: visit `https://acis-backend.onrender.com/docs` to see the API docs
 
 ---
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 acis/
-├── main.py                    # FastAPI entry point
-├── config/
-│   └── settings.py            # Environment configuration
-├── app/
-│   ├── api/
-│   │   └── routes.py          # API endpoints
-│   ├── core/
-│   │   ├── classifier.py      # Task classification
-│   │   ├── model_registry.py  # Model catalog + pricing
-│   │   ├── routing_engine.py  # Smart routing + cascading
-│   │   ├── cost_engine.py     # Cost estimation + simulation
-│   │   ├── evaluation.py      # LLM-as-judge quality scoring
-│   │   ├── cache.py           # Query caching
-│   │   └── memory.py          # Analytics + learning store
-│   ├── integrations/
-│   │   └── providers.py       # OpenAI / Anthropic / Google wrappers
-│   └── services/
-│       └── orchestrator.py    # Main execution pipeline
-├── docker-compose.yml
-├── Dockerfile
-└── pyproject.toml
+├── index.html              ← Frontend entry point
+├── package.json            ← Frontend dependencies
+├── vite.config.js          ← Vite build config
+├── vercel.json             ← Vercel routing config
+├── src/
+│   ├── main.jsx            ← React entry
+│   └── App.jsx             ← Full dashboard app
+├── backend/
+│   ├── main.py             ← FastAPI server
+│   ├── requirements.txt    ← Python dependencies
+│   ├── .env.example        ← Environment template
+│   ├── config/
+│   │   └── settings.py     ← Configuration
+│   ├── app/
+│   │   ├── api/routes.py        ← API endpoints
+│   │   ├── core/
+│   │   │   ├── classifier.py    ← Task classification
+│   │   │   ├── model_registry.py ← 10 models with pricing
+│   │   │   ├── routing_engine.py ← Smart routing + cascade
+│   │   │   ├── cost_engine.py   ← Cost simulation
+│   │   │   ├── evaluation.py    ← Quality scoring
+│   │   │   ├── cache.py         ← Response caching
+│   │   │   └── memory.py        ← Analytics + learning
+│   │   ├── integrations/
+│   │   │   └── providers.py     ← OpenAI/Anthropic/Google
+│   │   └── services/
+│   │       └── orchestrator.py  ← Execution pipeline
+│   └── tests/
+│       └── test_acis.py         ← 40 passing tests
+└── render.yaml             ← Render deploy config
 ```
 
 ---
 
-## Self-Learning Loop
+## 🧪 API Endpoints (Backend)
 
-ACIS gets smarter with every query:
-
-1. **Record**: Every query's model, cost, latency, and quality score
-2. **Analyze**: After 5+ data points per model, historical averages influence routing
-3. **Adjust**: Routing preferences shift toward models that perform best per task type
-4. **Report**: `/analytics/routing-preferences` shows learned optimal models
-
----
-
-## Deployment
-
-### Railway
-```bash
-railway init
-railway link
-railway up
-```
-
-### Fly.io
-```bash
-fly launch
-fly deploy
-```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/query` | Send prompt → get optimized response |
+| POST | `/api/v1/simulate` | Preview cost across all models (no spend) |
+| POST | `/api/v1/classify` | Classify a prompt's task type |
+| GET | `/api/v1/models` | List all models with pricing |
+| GET | `/api/v1/analytics/savings` | Cost savings report |
+| GET | `/api/v1/analytics/logs` | Recent query history |
+| GET | `/api/v1/health` | System health check |
 
 ---
 
