@@ -1,70 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, CartesianGrid, Legend, AreaChart, Area } from "recharts";
-
-// ─── Model Registry (mirrors backend) ─────────────────────────
-const MODELS = [
-  { id: "gpt-4.1-nano", name: "GPT-4.1 Nano", provider: "openai", tier: 1, inputCost: 0.10, outputCost: 0.40, latency: 200, color: "#22d3ee" },
-  { id: "gpt-4o-mini", name: "GPT-4o Mini", provider: "openai", tier: 2, inputCost: 0.15, outputCost: 0.60, latency: 400, color: "#38bdf8" },
-  { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", provider: "google", tier: 2, inputCost: 0.15, outputCost: 0.60, latency: 300, color: "#34d399" },
-  { id: "claude-haiku-4-5", name: "Claude Haiku 4.5", provider: "anthropic", tier: 3, inputCost: 0.80, outputCost: 4.00, latency: 350, color: "#a78bfa" },
-  { id: "gpt-4.1-mini", name: "GPT-4.1 Mini", provider: "openai", tier: 3, inputCost: 0.40, outputCost: 1.60, latency: 350, color: "#60a5fa" },
-  { id: "gpt-4o", name: "GPT-4o", provider: "openai", tier: 4, inputCost: 2.50, outputCost: 10.00, latency: 800, color: "#818cf8" },
-  { id: "gpt-4.1", name: "GPT-4.1", provider: "openai", tier: 4, inputCost: 2.00, outputCost: 8.00, latency: 700, color: "#6366f1" },
-  { id: "claude-sonnet-4", name: "Claude Sonnet 4", provider: "anthropic", tier: 4, inputCost: 3.00, outputCost: 15.00, latency: 900, color: "#c084fc" },
-  { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", provider: "google", tier: 4, inputCost: 1.25, outputCost: 10.00, latency: 700, color: "#4ade80" },
-  { id: "claude-opus-4-6", name: "Claude Opus 4.6", provider: "anthropic", tier: 5, inputCost: 5.00, outputCost: 25.00, latency: 1500, color: "#e879f9" },
-];
-
-const TASK_TYPES = {
-  code: { label: "Code", icon: "⌨️", keywords: ["code","function","class","def","import","script","debug","api","python","javascript","html","implement","refactor"] },
-  creative: { label: "Creative", icon: "✨", keywords: ["write","story","poem","essay","blog","article","creative","fiction","marketing","slogan"] },
-  analysis: { label: "Analysis", icon: "📊", keywords: ["analyze","analysis","compare","evaluate","benchmark","report","data","trend","insight","research"] },
-  support: { label: "Support", icon: "💬", keywords: ["help","how to","explain","tutorial","guide","troubleshoot","setup","install","configure","fix"] },
-  summarization: { label: "Summary", icon: "📝", keywords: ["summarize","summary","tldr","condense","brief","recap","key points"] },
-  reasoning: { label: "Reasoning", icon: "🧠", keywords: ["reason","logic","proof","theorem","deduce","solve","puzzle","math","why does","prove"] },
-  general: { label: "General", icon: "💡", keywords: [] },
-};
-
-// ─── Classification Engine ────────────────────────────────────
-function classifyPrompt(prompt) {
-  const lower = prompt.toLowerCase();
-  const scores = {};
-  for (const [type, { keywords }] of Object.entries(TASK_TYPES)) {
-    scores[type] = keywords.filter(k => lower.includes(k)).length;
-  }
-  const best = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
-  const taskType = best[1] > 0 ? best[0] : "general";
-
-  const words = prompt.split(/\s+/).length;
-  const techTerms = ["algorithm","architecture","optimization","distributed","microservice","database","neural","transformer","pipeline","encryption"].filter(t => lower.includes(t)).length;
-  const complexity = Math.min(5, Math.max(1, Math.round(1 + (words > 200 ? 2 : words > 50 ? 1 : 0) + techTerms * 0.5)));
-
-  return { taskType, complexity, confidence: best[1] > 0 ? 0.85 : 0.5 };
-}
-
-function estimateTokens(text) {
-  return Math.max(1, Math.round(text.split(/\s+/).length / 0.75));
-}
-
-function estimateCost(model, inputTokens, outputTokens) {
-  return (inputTokens / 1e6) * model.inputCost + (outputTokens / 1e6) * model.outputCost;
-}
-
-function routeToModel(prompt) {
-  const { taskType, complexity } = classifyPrompt(prompt);
-  const inputTokens = estimateTokens(prompt);
-  const outputRatio = { code: 1.5, creative: 2, analysis: 1, support: 0.5, summarization: 0.3, reasoning: 1.2, general: 0.8 }[taskType] || 0.8;
-  const outputTokens = Math.max(50, Math.round(inputTokens * outputRatio));
-  const minTier = Math.max(1, Math.ceil(complexity / 2));
-  const candidates = MODELS.filter(m => m.tier >= minTier);
-  const scored = candidates.map(m => {
-    const cost = estimateCost(m, inputTokens, outputTokens);
-    const quality = { 1: 45, 2: 60, 3: 72, 4: 85, 5: 95 }[m.tier] || 60;
-    const value = quality / (cost * 1000 + 0.001);
-    return { ...m, cost, quality, value, inputTokens, outputTokens };
-  }).sort((a, b) => b.value - a.value);
-  return { scored, taskType, complexity, inputTokens, outputTokens };
-}
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid, Legend, AreaChart, Area } from "recharts";
+import { MODELS, PREMIUM_MODEL, TASK_TYPES, classifyPrompt, estimateTokens, estimateCost, routeToModel } from "./lib/pricing.js";
 
 // ─── Styles ───────────────────────────────────────────────────
 const fonts = `@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Outfit:wght@300;400;500;600;700;800;900&display=swap');`;
@@ -87,7 +23,7 @@ function SavingsCounter({ total, animatedTotal }) {
         ${animatedTotal.toFixed(4)}
       </div>
       <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 13, color: "#86efac", marginTop: 8, position: "relative" }}>
-        vs. always using Claude Opus 4.6 (most expensive)
+        vs. always using {PREMIUM_MODEL.name} (highest list price in registry)
       </div>
     </div>
   );
@@ -172,7 +108,7 @@ export default function ACISDashboard() {
     }
   }, [totalSavings, animatedSavings]);
 
-  // Seed demo data
+  // Seed illustrative sample rows so the charts are not empty on first load
   useEffect(() => {
     const demoPrompts = [
       { prompt: "Write a quicksort function in Python", taskType: "code", model: "gpt-4o-mini", cost: 0.00012, quality: 78, latency: 380, savings: 0.00450, cached: false },
@@ -215,41 +151,46 @@ export default function ACISDashboard() {
     const model = simulation.scored.find(s => s.id === selectedModel);
     if (!model) { setIsProcessing(false); return; }
 
-    const premiumModel = MODELS[MODELS.length - 1];
+    const premiumModel = PREMIUM_MODEL;
 
-    // Try real API first (works inside Claude.ai artifact), fall back to simulation
     let content = null;
     let actualInputTokens = model.inputTokens;
     let actualOutputTokens = model.outputTokens;
     let usedLiveApi = false;
+    let servedBy = null;
 
+    // Live mode: serverless proxy at /api/chat (see api/chat.js)
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: controller.signal,
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          system: `You are simulating the output of "${model.name}" (${model.provider}). Respond helpfully and concisely. Keep response under 200 words.`,
-          messages: [{ role: "user", content: prompt }],
+          prompt,
+          model_name: model.name,
+          provider: model.provider,
         }),
       });
       clearTimeout(timeout);
-      const data = await response.json();
-      content = data.content?.map(b => b.type === "text" ? b.text : "").join("") || null;
-      actualInputTokens = data.usage?.input_tokens || model.inputTokens;
-      actualOutputTokens = data.usage?.output_tokens || model.outputTokens;
-      if (content) usedLiveApi = true;
+      if (response.ok) {
+        const data = await response.json();
+        if (data.content) {
+          content = data.content;
+          actualInputTokens = data.input_tokens || model.inputTokens;
+          actualOutputTokens = data.output_tokens || model.outputTokens;
+          servedBy = data.served_by || null;
+          usedLiveApi = true;
+        }
+      }
     } catch (_) {
-      // CORS or network error — expected outside artifact env, fall through to simulation
+      // Proxy not available (plain `npm run dev`); fall back to simulation
     }
 
-    // Generate simulated response if API unavailable
+    // Fallback: simulated response (no API key needed)
     if (!content) {
-      await new Promise(r => setTimeout(r, 300 + Math.random() * 500)); // realistic delay
+      await new Promise(r => setTimeout(r, 300 + Math.random() * 500));
       const simResponses = {
         code: `Here's an implementation for your request:\n\n\`\`\`python\ndef solution():\n    # Implementation using ${model.name}\n    # Optimized for ${model.tier >= 4 ? "accuracy and edge cases" : "speed and simplicity"}\n    pass\n\`\`\`\n\nThis approach uses a ${model.tier >= 4 ? "comprehensive" : "straightforward"} strategy. Time complexity: O(n). Space complexity: O(1).\n\nKey decisions:\n• Chose iterative over recursive for memory efficiency\n• Added input validation for robustness\n• Handles edge cases: empty input, single element, duplicates`,
         creative: `${model.tier >= 4 ? "In the amber light of a forgotten afternoon, " : ""}The story unfolds with unexpected turns — a world where every choice echoes forward. The protagonist discovers that ${model.tier >= 4 ? "the boundaries between memory and imagination blur like watercolors in rain" : "things aren't always what they seem"}.\n\nThis narrative explores themes of identity and transformation, weaving together moments both quiet and electric.`,
@@ -258,7 +199,7 @@ export default function ACISDashboard() {
         general: `Based on your prompt, here's a comprehensive response:\n\nThe key points to understand are:\n• Context matters — the answer depends on your specific use case\n• There are ${model.tier >= 4 ? "several nuanced considerations" : "a few important factors"} to weigh\n• The optimal approach balances practicality with thoroughness\n\nBottom line: ${model.tier >= 4 ? "This requires careful analysis of trade-offs, but the evidence points toward a clear direction" : "Start simple, iterate, and optimize based on results"}.`,
       };
       content = simResponses[simulation.taskType] || simResponses.general;
-      content = `[Simulated — ${model.name} response]\n\n${content}`;
+      if (!usedLiveApi) content = `[Simulated — ${model.name} response]\n\n${content}`;
       actualOutputTokens = estimateTokens(content);
     }
 
@@ -266,7 +207,7 @@ export default function ACISDashboard() {
     const premiumCost = estimateCost(premiumModel, actualInputTokens, actualOutputTokens);
     const savings = Math.max(0, premiumCost - actualCost);
 
-    setAiResponse({ content, model: model.name, cost: actualCost, inputTokens: actualInputTokens, outputTokens: actualOutputTokens, quality: model.quality, latency: model.latency, live: usedLiveApi });
+    setAiResponse({ content, model: model.name, cost: actualCost, inputTokens: actualInputTokens, outputTokens: actualOutputTokens, quality: model.quality, latency: model.latency, live: usedLiveApi, servedBy });
 
     const newLog = { prompt: prompt.slice(0, 80), taskType: simulation.taskType, model: model.name.split(" ").pop(), cost: actualCost, quality: model.quality, latency: model.latency, savings, cached: false };
     setQueryLogs(prev => [newLog, ...prev]);
@@ -324,7 +265,7 @@ export default function ACISDashboard() {
         <div style={{ display: "flex", gap: 4, background: "rgba(255,255,255,0.04)", borderRadius: 12, padding: 4 }}>
           {[{ id: "simulate", label: "Simulate" }, { id: "analytics", label: "Analytics" }, { id: "models", label: "Models" }].map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
-              padding: "8px 20px", borderRadius: 10, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600,
+              padding: "8px 20px", borderRadius: 10, cursor: "pointer", fontSize: 13, fontWeight: 600,
               fontFamily: "'Outfit',sans-serif", transition: "all 0.2s",
               background: activeTab === tab.id ? "rgba(139,92,246,0.2)" : "transparent",
               color: activeTab === tab.id ? "#c4b5fd" : "#64748b",
@@ -409,7 +350,7 @@ export default function ACISDashboard() {
                 </div>
                 <div style={{ marginTop: 16, padding: "12px 16px", background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.2)", borderRadius: 10 }}>
                   <span style={{ fontFamily: "'Space Mono',monospace", fontSize: 12, color: "#86efac" }}>
-                    💰 Using {simulation.scored[0]?.name} instead of {MODELS[MODELS.length - 1].name} saves ${(simulation.scored[simulation.scored.length - 1]?.cost - simulation.scored[0]?.cost).toFixed(6)} per query
+                    💰 Using {simulation.scored[0]?.name} instead of {PREMIUM_MODEL.name} saves ${Math.max(0, simulation.premiumCost - simulation.scored[0]?.cost).toFixed(6)} per query (estimated)
                   </span>
                 </div>
               </div>
@@ -423,6 +364,9 @@ export default function ACISDashboard() {
                   <span style={{ padding: "2px 8px", borderRadius: 6, fontSize: 10, fontWeight: 600, background: aiResponse.live ? "rgba(52,211,153,0.15)" : "rgba(251,191,36,0.12)", color: aiResponse.live ? "#34d399" : "#fbbf24", border: `1px solid ${aiResponse.live ? "rgba(52,211,153,0.3)" : "rgba(251,191,36,0.25)"}` }}>
                     {aiResponse.live ? "LIVE API" : "SIMULATED"}
                   </span>
+                  {aiResponse.live && aiResponse.servedBy && (
+                    <span style={{ fontFamily: "'Space Mono',monospace", fontSize: 10, color: "#64748b" }}>served by {aiResponse.servedBy}, priced at {aiResponse.model} rates</span>
+                  )}
                   <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
                     <span style={{ fontFamily: "'Space Mono',monospace", fontSize: 11, color: "#34d399" }}>${aiResponse.cost.toFixed(6)}</span>
                     <span style={{ fontFamily: "'Space Mono',monospace", fontSize: 11, color: "#94a3b8" }}>{aiResponse.inputTokens}→{aiResponse.outputTokens} tokens</span>
@@ -437,7 +381,7 @@ export default function ACISDashboard() {
             {/* Query History */}
             {queryLogs.length > 0 && (
               <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 16, padding: 20 }}>
-                <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Query History</div>
+                <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Query History <span style={{ fontSize: 11, fontWeight: 500, color: "#64748b" }}>(seeded with 7 illustrative sample rows)</span></div>
                 <div style={{ display: "grid", gridTemplateColumns: "32px 1fr 90px 80px 70px 70px 80px", gap: 8, padding: "8px 16px", marginBottom: 4 }}>
                   {["", "Prompt", "Model", "Cost", "Quality", "Latency", "Saved"].map((h, i) => (
                     <span key={i} style={{ fontFamily: "'Outfit',sans-serif", fontSize: 11, color: "#475569", fontWeight: 600, textTransform: "uppercase", letterSpacing: 1 }}>{h}</span>
@@ -518,7 +462,7 @@ export default function ACISDashboard() {
         {/* ─── MODELS TAB ─────────────────────────────── */}
         {activeTab === "models" && (
           <div className="slide-up">
-            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Model Registry — {MODELS.length} models across 3 providers</div>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Model Registry: {MODELS.length} models across 3 providers (list prices, USD)</div>
             <div style={{ display: "grid", gap: 12 }}>
               {MODELS.map(model => (
                 <div key={model.id} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "16px 20px", display: "grid", gridTemplateColumns: "200px 1fr 1fr 1fr 80px", alignItems: "center", gap: 16 }}>

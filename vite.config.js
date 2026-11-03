@@ -3,12 +3,6 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  server: {
-    proxy: {
-      '/api': {
-        target: 'http://localhost:8000',
-        changeOrigin: true,
-      }
-    }
-  }
+  // Recharts alone is about 550 kB minified; raise the warning threshold accordingly.
+  build: { chunkSizeWarningLimit: 700 },
 })

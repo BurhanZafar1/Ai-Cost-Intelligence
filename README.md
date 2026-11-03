@@ -1,129 +1,77 @@
-# ACIS — AI Cost Intelligence System
+# AI Cost Intelligence
 
-> **"The Stripe for AI usage optimization."**
+Estimate what each LLM query costs across 10 commercial models before you send it, and route it to the model with the best quality per dollar.
 
-Intelligently route every AI prompt to the optimal model — balancing **cost × quality × speed** — so you never overpay for AI again.
+## The problem
 
-## ✨ Live Features
+Companies that build on large language models pay per token, and list prices for comparable requests differ by more than an order of magnitude between a small model and a frontier model. Teams that send every request to one premium model turn inference into a variable cost that scales with usage and erodes gross margin. The economic question is familiar: for each unit of work, what is the cheapest input that meets the quality bar? Answering it needs a per-query view of unit cost.
 
-- **Simulate Before Execute** — Preview cost + quality across 10 models before spending a token
-- **Auto-Cascading Fallback** — Try cheap model → escalate automatically if quality is low
-- **Self-Learning Routing** — Gets smarter with every query
-- **Cost Savings Dashboard** — Real-time savings counter with charts
-- **Task Classification** — Auto-detects code / creative / analysis / support tasks
+## What it does
 
----
+* Classifies a prompt by task type (code, analysis, summarization and others) and assigns a 1 to 5 complexity score.
+* Estimates input and output tokens and prices the request against list prices for 10 models from OpenAI, Anthropic and Google.
+* Ranks eligible models by a quality per dollar score and flags the cheapest, fastest and highest quality options.
+* Reports the estimated saving against always using the most expensive model in the registry.
+* Charts cumulative savings, cost by task type and model mix for the session.
+* Optional live mode sends the prompt to a real API and prices the actual token counts.
 
-## 🚀 Deploy in 5 Minutes (No Terminal Needed)
+## How it works
 
-### Step 1 — Get the code on GitHub
+All pricing and routing logic is in `src/lib/pricing.js` and is covered by unit tests.
 
-1. Go to [github.com/new](https://github.com/new)
-2. Name your repo `acis` (or anything you like)
-3. Set it to **Public**
-4. Check **"Add a README file"**
-5. Click **Create repository**
-6. On your new repo page, click **"Add file"** → **"Upload files"**
-7. Drag and drop ALL files from the downloaded zip into the upload area
-8. Click **"Commit changes"**
+1. **Token estimate.** About 0.75 words per token for input; output is input times a task-specific ratio (for example 0.3 for summaries, 2.0 for creative writing), with a floor of 50 tokens.
+2. **Cost.** `input_tokens / 1e6 * input_price + output_tokens / 1e6 * output_price`, using list prices in USD per million tokens.
+3. **Eligibility.** Complexity sets a minimum capability tier, so harder prompts exclude the smallest models.
+4. **Ranking.** Each model gets a quality proxy by tier (45 to 95) and a value score of quality divided by cost. Models are sorted by value.
+5. **Live mode.** `api/chat.js` is a Vercel Edge Function that forwards the prompt to the Anthropic Messages API and returns real token usage. The dashboard prices that usage at the selected model's rates and shows which model served it. Without a key it falls back to a labelled simulated response.
 
-> **Important:** Make sure the files are at the ROOT of the repo, not inside a subfolder. You should see `package.json`, `index.html`, `vite.config.js` etc. at the top level.
+Stack: React 18, Vite, Recharts and one serverless function.
 
----
+## Quickstart
 
-### Step 2 — Deploy Frontend on Vercel (FREE)
-
-1. Go to [vercel.com](https://vercel.com) and click **"Sign Up"** → **"Continue with GitHub"**
-2. Authorize Vercel to access your GitHub
-3. Click **"Add New..."** → **"Project"**
-4. Find your `acis` repo in the list and click **"Import"**
-5. Vercel auto-detects Vite. Leave all settings as default:
-   - Framework Preset: **Vite**
-   - Build Command: `npm run build`  
-   - Output Directory: `dist`
-6. Click **"Deploy"**
-7. Wait ~60 seconds. You'll get a live URL like: **`https://acis-yourusername.vercel.app`**
-
-✅ **Done! Your dashboard is live.** The simulation mode works immediately — no backend needed.
-
----
-
-### Step 3 (Optional) — Deploy Backend on Render (FREE)
-
-This gives you a live API with real LLM routing.
-
-1. Go to [render.com](https://render.com) and sign up with GitHub
-2. Click **"New +"** → **"Web Service"**
-3. Connect your `acis` GitHub repo
-4. Configure:
-   - **Name:** `acis-backend`
-   - **Root Directory:** `backend`
-   - **Runtime:** Python
-   - **Build Command:** `pip install -r requirements.txt`
-   - **Start Command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
-5. Under **Environment Variables**, add your API keys:
-   - `OPENAI_API_KEY` = your key
-   - `ANTHROPIC_API_KEY` = your key  
-   - `GOOGLE_API_KEY` = your key
-6. Select the **Free** plan
-7. Click **"Create Web Service"**
-8. Wait ~2 minutes for build. You'll get a URL like: **`https://acis-backend.onrender.com`**
-9. Test it: visit `https://acis-backend.onrender.com/docs` to see the API docs
-
----
-
-## 📁 Project Structure
-
-```
-acis/
-├── index.html              ← Frontend entry point
-├── package.json            ← Frontend dependencies
-├── vite.config.js          ← Vite build config
-├── vercel.json             ← Vercel routing config
-├── src/
-│   ├── main.jsx            ← React entry
-│   └── App.jsx             ← Full dashboard app
-├── backend/
-│   ├── main.py             ← FastAPI server
-│   ├── requirements.txt    ← Python dependencies
-│   ├── .env.example        ← Environment template
-│   ├── config/
-│   │   └── settings.py     ← Configuration
-│   ├── app/
-│   │   ├── api/routes.py        ← API endpoints
-│   │   ├── core/
-│   │   │   ├── classifier.py    ← Task classification
-│   │   │   ├── model_registry.py ← 10 models with pricing
-│   │   │   ├── routing_engine.py ← Smart routing + cascade
-│   │   │   ├── cost_engine.py   ← Cost simulation
-│   │   │   ├── evaluation.py    ← Quality scoring
-│   │   │   ├── cache.py         ← Response caching
-│   │   │   └── memory.py        ← Analytics + learning
-│   │   ├── integrations/
-│   │   │   └── providers.py     ← OpenAI/Anthropic/Google
-│   │   └── services/
-│   │       └── orchestrator.py  ← Execution pipeline
-│   └── tests/
-│       └── test_acis.py         ← 40 passing tests
-└── render.yaml             ← Render deploy config
+```bash
+git clone https://github.com/BurhanZafar1/ai-cost-intelligence.git
+cd ai-cost-intelligence
+npm install
+npm test        # unit tests for the pricing and routing logic
+npm run dev     # simulation mode at http://localhost:5173
 ```
 
----
+For live mode locally, copy `.env.example` to `.env`, add a key, and run `npx vercel dev`. To deploy, import the repo in Vercel and set the same variables in the project settings.
 
-## 🧪 API Endpoints (Backend)
+## Configuration
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/query` | Send prompt → get optimized response |
-| POST | `/api/v1/simulate` | Preview cost across all models (no spend) |
-| POST | `/api/v1/classify` | Classify a prompt's task type |
-| GET | `/api/v1/models` | List all models with pricing |
-| GET | `/api/v1/analytics/savings` | Cost savings report |
-| GET | `/api/v1/analytics/logs` | Recent query history |
-| GET | `/api/v1/health` | System health check |
+| Variable | Required | Purpose |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | Live mode only | Key used by `api/chat.js` |
+| `LLM_MODEL` | No | Model the proxy calls; defaults to `claude-sonnet-4-20250514` |
 
----
+## Example output
+
+Produced by `routeToModel()` for the prompt "Write a Python function that merges two sorted lists and explain its time complexity":
+
+```
+task=code complexity=1 input_tokens=19 output_tokens=50
+GPT-4.1 Nano         $0.000022 Q45
+GPT-4o Mini          $0.000033 Q60
+GPT-4.1 Mini         $0.000088 Q72
+Gemini 2.5 Flash     $0.000131 Q60
+...
+Claude Opus 4.6      $0.001345 Q95
+premium baseline $0.001345; saving vs baseline $0.001323 per query
+```
+
+## Limitations and next steps
+
+* Quality scores are a tier-based prior, not benchmark results, so the ranking leans toward cheap models. The example above sends a coding task to the smallest model.
+* Task classification is keyword based.
+* Token counts are a word-based approximation.
+* Prices are hardcoded list prices that should be checked against provider pages; they ignore batch discounts, prompt caching and long-context surcharges.
+* Live mode calls one provider and does not yet route across providers.
+* The query log lives in browser memory and is seeded with seven illustrative sample rows.
+
+Next steps: calibrate quality scores against a labelled evaluation set, estimate the quality and cost frontier empirically, and add a cascade that escalates to a larger model when a cheap answer fails a check.
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).
